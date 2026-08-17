@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Storage · live roots</title>
+  <style>
+    @font-face {
+      font-family: "OpenDyslexic3";
+      src: url("/fonts/OpenDyslexic3-Regular.ttf") format("truetype");
+      font-weight: 400; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: "OpenDyslexic3";
+      src: url("/fonts/OpenDyslexic3-Bold.ttf") format("truetype");
+      font-weight: 700; font-style: normal; font-display: swap;
+    }
+    :root {
+      --bg: #070b12; --panel: #0c1826; --line: #2a4a6a;
+      --text: #eef5ff; --muted: #b4c6d8; --accent: #7cf7ff; --hot: #ff9b5e;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font: 14px/1.45 "OpenDyslexic3", "Segoe UI", system-ui, sans-serif;
+    }
+    body { display: flex; flex-direction: column; padding: 10px 12px 14px; }
+    h1 { margin: 0 0 4px; font-size: 16px; color: var(--accent); }
+    .note { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+    .roots { display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+    .root {
+      border: 1px solid var(--line); background: var(--panel);
+      border-radius: 8px; padding: 8px 10px;
+    }
+    .root.missing { opacity: 0.55; }
+    .root.planned { border-style: dashed; }
+    .who { font-weight: 800; font-size: 13px; }
+    .role { color: var(--muted); font-size: 11px; margin-left: 6px; }
+    .path { font-size: 11px; color: var(--muted); word-break: break-all; margin-top: 2px; }
+    .meta { font-size: 11px; color: var(--accent); margin-top: 2px; }
+    .msg { margin-top: auto; font-size: 12px; color: var(--muted); min-height: 1.2em; }
+    .msg.err { color: var(--hot); }
+  </style>
+</head>
+<body>
+  <h1>Live storage</h1>
+  <p class="note">Disk roots this machine already knows. Shallow count only. Takeout inbox is not shipped yet.</p>
+  <div class="roots" id="roots"></div>
+  <p class="msg" id="msg"></p>
+<script>
+(function () {
+  var box = document.getElementById("roots");
+  var msg = document.getElementById("msg");
+
+  function say(t, err) {
+    msg.textContent = t || "";
+    msg.className = "msg" + (err ? " err" : "");
+  }
+
+  async function load() {
+    say("reading roots…");
+    try {
+      var r = await fetch("/api/storage", { cache: "no-store" });
+      var j = await r.json();
+      if (!j || !j.ok) {
+        say((j && j.error) || "storage list failed", true);
+        return;
+      }
+      box.textContent = "";
+      (j.roots || []).forEach(function (row) {
+        var el = document.createElement("article");
+        el.className = "root" + (row.exists ? "" : " missing") + (row.shipped === false ? " planned" : "");
+        var who = document.createElement("div");
+        who.innerHTML = "";
+        var name = document.createElement("span");
+        name.className = "who";
+        name.textContent = row.id || "?";
+        var role = document.createElement("span");
+        role.className = "role";
+        role.textContent = row.role || "";
+        who.appendChild(name);
+        who.appendChild(role);
+        var path = document.createElement("div");
+        path.className = "path";
+        path.textContent = row.path || "";
+        var meta = document.createElement("div");
+        meta.className = "meta";
+        var bits = [];
+        if (row.shipped === false) bits.push("not shipped");
+        bits.push(row.exists ? "on disk" : "missing");
+        if (row.exists && row.kind !== "file") {
+          bits.push((row.shallow_dirs || 0) + " dirs");
+          bits.push((row.shallow_files || 0) + " files (shallow)");
+        }
+        if (row.note) bits.push(row.note);
+        meta.textContent = bits.join(" · ");
+        el.appendChild(who);
+        el.appendChild(path);
+        el.appendChild(meta);
+        box.appendChild(el);
+      });
+      say((j.roots || []).length + " roots · no walk of trees");
+    } catch (e) {
+      say(String(e), true);
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>
